@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PeerBridge — Create Account</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy: #0d1b2a;
+    --navy-mid: #1a2d42;
+    --navy-light: #243d57;
+    --amber: #e8a838;
+    --amber-light: #f5c96a;
+    --cream: #f5efe6;
+    --text: #f0e9de;
+    --text-dim: #9aabbc;
+    --glass: rgba(255,255,255,0.05);
+    --glass-border: rgba(255,255,255,0.1);
+    --green: #5cc98a;
+    --error: #e07070;
+  }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--navy);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 24px 60px;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  .bg {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 70% 50% at 80% 10%, rgba(232,168,56,0.1) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 70% at 20% 90%, rgba(36,61,87,0.6) 0%, transparent 60%),
+      #0d1b2a;
+  }
+  .bg-grid {
+    position: fixed; inset: 0; z-index: 0;
+    background-image: linear-gradient(rgba(232,168,56,0.04) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(232,168,56,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .topbar {
+    width: 100%; max-width: 900px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 48px;
+    position: relative; z-index: 2;
+    animation: fadeUp 0.5s ease both;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .brand-icon {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, var(--amber), #c97d1a);
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+  }
+  .brand-name { font-family: 'Playfair Display', serif; font-size: 1.3rem; color: var(--text); }
+  .brand-name span { color: var(--amber); }
+  .sign-in-link { font-size: 0.88rem; color: var(--text-dim); }
+  .sign-in-link a { color: var(--amber); text-decoration: none; font-weight: 500; }
+
+  .progress-wrap {
+    width: 100%; max-width: 560px;
+    margin-bottom: 40px;
+    position: relative; z-index: 2;
+    animation: fadeUp 0.5s 0.1s ease both;
+  }
+  .progress-steps { display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+  .step-item { display: flex; align-items: center; }
+  .step-circle {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 2px solid var(--glass-border);
+    background: var(--glass);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.78rem; color: var(--text-dim); font-weight: 600;
+    transition: all 0.3s;
+  }
+  .step-circle.active { border-color: var(--amber); background: rgba(232,168,56,0.15); color: var(--amber); box-shadow: 0 0 0 4px rgba(232,168,56,0.1); }
+  .step-circle.done { border-color: var(--green); background: rgba(92,201,138,0.15); color: var(--green); }
+  .step-line { width: 70px; height: 1px; background: var(--glass-border); transition: background 0.3s; }
+  .step-line.done { background: var(--green); }
+  .steps-labels { display: flex; justify-content: space-between; padding: 0; }
+  .step-label { font-size: 0.72rem; color: var(--text-dim); text-align: center; text-transform: uppercase; letter-spacing: 0.6px; width: 34px; transition: color 0.3s; }
+  .step-label.active { color: var(--amber); }
+  .step-label.done { color: var(--green); }
+
+  .card {
+    width: 100%; max-width: 560px;
+    background: rgba(26, 45, 66, 0.7);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 44px 48px;
+    position: relative; z-index: 2;
+    animation: fadeUp 0.6s 0.15s ease both;
+  }
+
+  .step-panel { display: none; }
+  .step-panel.visible { display: block; }
+
+  .step-header { margin-bottom: 32px; }
+  .step-num { font-size: 0.75rem; color: var(--amber); text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; margin-bottom: 8px; }
+  .step-title { font-family: 'Playfair Display', serif; font-size: 1.7rem; color: var(--text); line-height: 1.25; margin-bottom: 8px; }
+  .step-desc { font-size: 0.88rem; color: var(--text-dim); line-height: 1.6; }
+
+  .role-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 28px; }
+  .role-card { border: 2px solid var(--glass-border); border-radius: 14px; padding: 22px 18px; cursor: pointer; transition: all 0.25s; background: var(--glass); }
+  .role-card:hover { border-color: rgba(232,168,56,0.4); background: rgba(232,168,56,0.05); }
+  .role-card.selected { border-color: var(--amber); background: rgba(232,168,56,0.1); }
+  .role-icon { font-size: 1.8rem; margin-bottom: 10px; }
+  .role-title { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .role-desc { font-size: 0.78rem; color: var(--text-dim); line-height: 1.5; }
+
+  .field { margin-bottom: 20px; }
+  .field-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  label { display: block; font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; font-weight: 500; }
+  input[type="text"], input[type="email"], input[type="password"],
+  input[type="tel"], select, textarea {
+    width: 100%; padding: 12px 16px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px; color: var(--text);
+    font-family: 'Outfit', sans-serif; font-size: 0.92rem;
+    outline: none; transition: border-color 0.2s, background 0.2s;
+    appearance: none;
+  }
+  select option { background: var(--navy-mid); color: var(--text); }
+  input::placeholder, textarea::placeholder { color: var(--text-dim); opacity: 0.5; }
+  input:focus, select:focus, textarea:focus { border-color: var(--amber); background: rgba(232,168,56,0.04); }
+  textarea { resize: vertical; min-height: 90px; }
+
+  .pw-strength { margin-top: 8px; }
+  .pw-bars { display: flex; gap: 4px; margin-bottom: 4px; }
+  .pw-bar { height: 3px; flex: 1; border-radius: 2px; background: rgba(255,255,255,0.1); transition: background 0.3s; }
+  .pw-bar.weak { background: var(--error); }
+  .pw-bar.fair { background: var(--amber); }
+  .pw-bar.strong { background: var(--green); }
+  .pw-label { font-size: 0.75rem; color: var(--text-dim); }
+
+  .module-input-wrap { display: flex; gap: 8px; }
+  .module-input-wrap input { flex: 1; }
+  .btn-add {
+    padding: 12px 16px;
+    background: rgba(232,168,56,0.15);
+    border: 1px solid rgba(232,168,56,0.3);
+    border-radius: 10px; color: var(--amber);
+    font-family: 'Outfit', sans-serif; font-size: 0.88rem; cursor: pointer; font-weight: 600;
+    transition: all 0.2s; white-space: nowrap;
+  }
+  .btn-add:hover { background: rgba(232,168,56,0.25); }
+  .tags-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; min-height: 20px; }
+  .tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(232,168,56,0.1); border: 1px solid rgba(232,168,56,0.25);
+    border-radius: 20px; padding: 4px 12px; font-size: 0.8rem; color: var(--amber);
+  }
+  .tag-remove { background: none; border: none; color: var(--amber); cursor: pointer; font-size: 0.9rem; line-height: 1; opacity: 0.7; padding: 0; }
+  .tag-remove:hover { opacity: 1; }
+  .hint { font-size: 0.78rem; color: var(--text-dim); margin-top: 6px; line-height: 1.5; }
+
+  .btn-row { display: flex; gap: 12px; margin-top: 32px; }
+  .btn-primary {
+    flex: 1; padding: 14px;
+    background: linear-gradient(135deg, var(--amber), #c97d1a);
+    border: none; border-radius: 10px;
+    color: var(--navy); font-family: 'Outfit', sans-serif;
+    font-size: 0.95rem; font-weight: 700; cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s;
+    box-shadow: 0 4px 20px rgba(232,168,56,0.25);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .btn-secondary {
+    padding: 14px 20px; background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px; color: var(--text-dim);
+    font-family: 'Outfit', sans-serif; font-size: 0.95rem; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-secondary:hover { border-color: rgba(255,255,255,0.2); color: var(--text); }
+
+  .error-msg {
+    background: rgba(224,112,112,0.1); border: 1px solid rgba(224,112,112,0.3);
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 0.84rem; color: var(--error);
+    margin-bottom: 16px; display: none;
+  }
+  .error-msg.show { display: block; }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(13,27,42,0.3); border-top-color: var(--navy);
+    border-radius: 50%; animation: spin 0.7s linear infinite; display: none;
+  }
+  .btn-primary.loading .spinner { display: block; }
+  .btn-primary.loading .btn-text { display: none; }
+
+  .success-wrap { text-align: center; padding: 20px 0; }
+  .success-icon {
+    width: 72px; height: 72px; background: rgba(92,201,138,0.15);
+    border: 2px solid var(--green); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2rem; margin: 0 auto 24px;
+  }
+  .success-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; color: var(--text); margin-bottom: 12px; }
+  .success-msg { font-size: 0.92rem; color: var(--text-dim); line-height: 1.7; max-width: 380px; margin: 0 auto 32px; }
+
+  .terms-note { text-align: center; font-size: 0.76rem; color: var(--text-dim); margin-top: 20px; line-height: 1.6; }
+  .terms-note a { color: var(--amber); text-decoration: none; }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 600px) {
+    .card { padding: 28px 22px; }
+    .role-cards { grid-template-columns: 1fr; }
+    .field-row-2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="bg-grid"></div>
+
+<div class="topbar">
+  <a href="signin.html" class="brand">
+    <div class="brand-icon">🎓</div>
+    <div class="brand-name">Peer<span>Bridge</span></div>
+  </a>
+  <span class="sign-in-link">Already have an account? <a href="signin.html">Sign in</a></span>
+</div>
+
+<div class="progress-wrap">
+  <div class="progress-steps">
+    <div class="step-item">
+      <div class="step-circle active" id="sc1">1</div>
+      <div class="step-line" id="sl1"></div>
+    </div>
+    <div class="step-item">
+      <div class="step-circle" id="sc2">2</div>
+      <div class="step-line" id="sl2"></div>
+    </div>
+    <div class="step-item">
+      <div class="step-circle" id="sc3">3</div>
+      <div class="step-line" id="sl3"></div>
+    </div>
+    <div class="step-item">
+      <div class="step-circle" id="sc4">4</div>
+    </div>
+  </div>
+  <div class="steps-labels">
+    <span class="step-label active" id="sl-1">Role</span>
+    <span style="flex:0.9"></span>
+    <span class="step-label" id="sl-2">Account</span>
+    <span style="flex:0.9"></span>
+    <span class="step-label" id="sl-3">Academic</span>
+    <span style="flex:0.9"></span>
+    <span class="step-label" id="sl-4">Profile</span>
+  </div>
+</div>
+
+<div class="card">
+
+  <!-- STEP 1 -->
+  <div class="step-panel visible" id="step1">
+    <div class="step-header">
+      <div class="step-num">Step 1 of 4</div>
+      <h2 class="step-title">How will you use PeerBridge?</h2>
+      <p class="step-desc">Choose your role. You can always change this later in settings.</p>
+    </div>
+    <div class="role-cards">
+      <div class="role-card" id="rc-student" onclick="selectRole('student')">
+        <div class="role-icon">🎒</div>
+        <div class="role-title">Student</div>
+        <div class="role-desc">I need help with my modules and want to find a qualified tutor.</div>
+      </div>
+      <div class="role-card" id="rc-tutor" onclick="selectRole('tutor')">
+        <div class="role-icon">📚</div>
+        <div class="role-title">Tutor</div>
+        <div class="role-desc">I can help others with my modules and want to offer tutoring.</div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="nextStep(1)">
+        <span class="btn-text">Continue →</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step-panel" id="step2">
+    <div class="step-header">
+      <div class="step-num">Step 2 of 4</div>
+      <h2 class="step-title">Create your account</h2>
+      <p class="step-desc">Your login credentials. Keep your password safe.</p>
+    </div>
+    <div id="step2Error" class="error-msg"></div>
+    <div class="field-row-2">
+      <div class="field">
+        <label>First Name</label>
+        <input type="text" id="firstName" placeholder="e.g. Mlungisi" />
+      </div>
+      <div class="field">
+        <label>Last Name</label>
+        <input type="text" id="lastName" placeholder="e.g. Nkosi" />
+      </div>
+    </div>
+    <div class="field">
+      <label>Email Address</label>
+      <input type="email" id="email" placeholder="you@university.ac.za" />
+    </div>
+    <div class="field">
+      <label>Phone Number</label>
+      <input type="tel" id="phone" placeholder="+27 82 000 0000" />
+      <div class="hint">Only shared after both parties connect.</div>
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" oninput="updateStrength(this.value)" />
+      <div class="pw-strength">
+        <div class="pw-bars">
+          <div class="pw-bar" id="bar1"></div>
+          <div class="pw-bar" id="bar2"></div>
+          <div class="pw-bar" id="bar3"></div>
+          <div class="pw-bar" id="bar4"></div>
+        </div>
+        <div class="pw-label" id="pw-label">Enter a password</div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="prevStep(2)">← Back</button>
+      <button class="btn-primary" onclick="nextStep(2)"><span class="btn-text">Continue →</span></button>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step-panel" id="step3">
+    <div class="step-header">
+      <div class="step-num">Step 3 of 4</div>
+      <h2 class="step-title">Your academic profile</h2>
+      <p class="step-desc">This is how we match you with the right people.</p>
+    </div>
+    <div class="field">
+      <label>University / Institution</label>
+      <input type="text" id="university" placeholder="e.g. North-West University" />
+    </div>
+    <div class="field-row-2">
+      <div class="field">
+        <label>Degree / Programme</label>
+        <input type="text" id="degree" placeholder="e.g. BSc Information Technology" />
+      </div>
+      <div class="field">
+        <label>Year of Study</label>
+        <select id="year">
+          <option value="" disabled selected>Select year</option>
+          <option>1st Year</option>
+          <option>2nd Year</option>
+          <option>3rd Year</option>
+          <option>4th Year</option>
+          <option>Postgraduate</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label id="module-label">Modules you need help with</label>
+      <div class="module-input-wrap">
+        <input type="text" id="moduleInput" placeholder="e.g. CMPG311" onkeydown="if(event.key==='Enter'){event.preventDefault();addModule()}" />
+        <button class="btn-add" onclick="addModule()">+ Add</button>
+      </div>
+      <div class="tags-list" id="tagsList"></div>
+      <div class="hint">Add module codes one at a time. At least 1 required for matching.</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="prevStep(3)">← Back</button>
+      <button class="btn-primary" onclick="nextStep(3)"><span class="btn-text">Continue →</span></button>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step-panel" id="step4">
+    <div class="step-header">
+      <div class="step-num">Step 4 of 4</div>
+      <h2 class="step-title">Complete your profile</h2>
+      <p class="step-desc">A good bio helps others decide to connect with you.</p>
+    </div>
+    <div id="step4Error" class="error-msg"></div>
+    <div class="field">
+      <label>Short Bio</label>
+      <textarea id="bio" placeholder="Tell others a little about yourself — your strengths, goals, or teaching style..."></textarea>
+    </div>
+    <div class="field">
+      <label>Preferred Contact Method</label>
+      <select id="contactPref">
+        <option value="" disabled selected>Choose preference</option>
+        <option>WhatsApp</option>
+        <option>Email</option>
+        <option>In-person only</option>
+        <option>Video call</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Availability</label>
+      <input type="text" id="availability" placeholder="e.g. Weekdays after 15:00, weekends" />
+    </div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="prevStep(4)">← Back</button>
+      <button class="btn-primary" id="createBtn" onclick="submitForm()">
+        <span class="btn-text">Create Account ✓</span>
+        <span class="spinner"></span>
+      </button>
+    </div>
+    <div class="terms-note">
+      By creating an account you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
+    </div>
+  </div>
+
+  <!-- SUCCESS -->
+  <div class="step-panel" id="stepDone">
+    <div class="success-wrap">
+      <div class="success-icon">✓</div>
+      <h2 class="success-title">You're all set!</h2>
+      <p class="success-msg">
+        Your PeerBridge account is ready. Head to your dashboard to view matches, manage connection requests, and find your perfect academic partner.
+      </p>
+      <button class="btn-primary" style="max-width:280px; margin:0 auto; display:flex;" onclick="window.location.href='dashboard.html'">
+        <span class="btn-text">Go to Dashboard →</span>
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let currentStep = 1;
+  let selectedRole = null;
+  let modules = [];
+
+  // ── Role selection ──
+  function selectRole(role) {
+    selectedRole = role;
+    document.getElementById('rc-student').classList.toggle('selected', role === 'student');
+    document.getElementById('rc-tutor').classList.toggle('selected', role === 'tutor');
+    const lbl = document.getElementById('module-label');
+    if (lbl) lbl.textContent = role === 'tutor' ? 'Modules you can teach' : 'Modules you need help with';
+  }
+
+  // ── Navigation ──
+  function nextStep(from) {
+    if (from === 1 && !selectedRole) { alert('Please select a role to continue.'); return; }
+    if (from === 2) {
+      const err = validate2();
+      if (err) { showStepError('step2Error', err); return; }
+    }
+    if (from === 3 && modules.length === 0) { alert('Please add at least one module.'); return; }
+    goToStep(from + 1);
+  }
+
+  function prevStep(from) { goToStep(from - 1); }
+
+  function goToStep(step) {
+    document.getElementById('step' + currentStep).classList.remove('visible');
+    currentStep = step;
+    if (step <= 4) document.getElementById('step' + step).classList.add('visible');
+    updateProgress(step);
+  }
+
+  function updateProgress(step) {
+    for (let i = 1; i <= 4; i++) {
+      const sc = document.getElementById('sc' + i);
+      const sl = document.getElementById('sl-' + i);
+      const line = document.getElementById('sl' + i);
+      if (!sc) continue;
+      if (i < step) {
+        sc.className = 'step-circle done'; sc.textContent = '✓';
+        if (sl) sl.className = 'step-label done';
+        if (line) line.className = 'step-line done';
+      } else if (i === step) {
+        sc.className = 'step-circle active'; sc.textContent = i;
+        if (sl) sl.className = 'step-label active';
+      } else {
+        sc.className = 'step-circle'; sc.textContent = i;
+        if (sl) sl.className = 'step-label';
+        if (line) line.className = 'step-line';
+      }
+    }
+  }
+
+  // ── Validation ──
+  function validate2() {
+    const firstName = document.getElementById('firstName').value.trim();
+    const lastName  = document.getElementById('lastName').value.trim();
+    const email     = document.getElementById('email').value.trim();
+    const password  = document.getElementById('password').value;
+    if (!firstName || !lastName) return 'Please enter your first and last name.';
+    if (!email || !email.includes('@')) return 'Please enter a valid email address.';
+    if (password.length < 8) return 'Password must be at least 8 characters.';
+    return null;
+  }
+
+  function showStepError(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+
+  // ── Password strength ──
+  function updateStrength(val) {
+    const bars = [document.getElementById('bar1'), document.getElementById('bar2'), document.getElementById('bar3'), document.getElementById('bar4')];
+    const label = document.getElementById('pw-label');
+    bars.forEach(b => b.className = 'pw-bar');
+    let score = 0;
+    if (val.length >= 8) score++;
+    if (/[A-Z]/.test(val)) score++;
+    if (/[0-9]/.test(val)) score++;
+    if (/[^A-Za-z0-9]/.test(val)) score++;
+    const cls = score <= 1 ? 'weak' : score <= 2 ? 'fair' : 'strong';
+    const labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+    for (let i = 0; i < score; i++) bars[i].classList.add(cls);
+    label.textContent = val.length === 0 ? 'Enter a password' : (labels[score] || 'Strong');
+  }
+
+  // ── Module tags ──
+  function addModule() {
+    const inp = document.getElementById('moduleInput');
+    const val = inp.value.trim().toUpperCase();
+    if (!val || modules.includes(val)) { inp.value = ''; return; }
+    modules.push(val);
+    renderTags();
+    inp.value = '';
+  }
+
+  function removeModule(mod) {
+    modules = modules.filter(m => m !== mod);
+    renderTags();
+  }
+
+  function renderTags() {
+    document.getElementById('tagsList').innerHTML = modules.map(m =>
+      `<span class="tag">${m}<button class="tag-remove" onclick="removeModule('${m}')">×</button></span>`
+    ).join('');
+  }
+
+  // ── Submit ──
+  async function submitForm() {
+    const btn = document.getElementById('createBtn');
+    const errEl = document.getElementById('step4Error');
+    errEl.classList.remove('show');
+
+    const firstName  = document.getElementById('firstName').value.trim();
+    const lastName   = document.getElementById('lastName').value.trim();
+    const email      = document.getElementById('email').value.trim();
+    const password   = document.getElementById('password').value;
+    const phone      = document.getElementById('phone').value.trim();
+    const university = document.getElementById('university').value.trim();
+    const degree     = document.getElementById('degree').value.trim();
+    const year       = document.getElementById('year').value;
+    const bio        = document.getElementById('bio').value.trim();
+    const contactPref = document.getElementById('contactPref').value;
+    const availability = document.getElementById('availability').value.trim();
+
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    try {
+      // 1. Create auth user (trigger auto-creates profile row)
+      const authData = await signUp({ firstName, lastName, email, password, phone, role: selectedRole });
+      const userId = authData.user?.id;
+
+      if (!userId) throw new Error('Account creation failed — please try again.');
+
+      // 2. Complete the profile with academic info
+      await updateMyProfile({
+        university,
+        degree,
+        year_of_study: year,
+        bio,
+        contact_pref: contactPref,
+        availability,
+        phone
+      });
+
+      // 3. Save modules
+      if (modules.length > 0) {
+        await setMyModules(modules);
+      }
+
+      // 4. Show success
+      document.getElementById('step4').classList.remove('visible');
+      document.getElementById('stepDone').classList.add('visible');
+      for (let i = 1; i <= 4; i++) {
+        const sc = document.getElementById('sc' + i);
+        if (sc) { sc.className = 'step-circle done'; sc.textContent = '✓'; }
+        const sl = document.getElementById('sl-' + i);
+        if (sl) sl.className = 'step-label done';
+        const line = document.getElementById('sl' + i);
+        if (line) line.className = 'step-line done';
+      }
+
+    } catch (err) {
+      errEl.textContent = err.message || 'Something went wrong. Please try again.';
+      errEl.classList.add('show');
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>

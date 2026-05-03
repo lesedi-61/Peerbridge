@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PeerBridge — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy: #0d1b2a;
+    --navy-mid: #1a2d42;
+    --navy-light: #243d57;
+    --amber: #e8a838;
+    --amber-dark: #c97d1a;
+    --cream: #f5efe6;
+    --text: #f0e9de;
+    --text-dim: #9aabbc;
+    --glass: rgba(255,255,255,0.04);
+    --glass-border: rgba(255,255,255,0.09);
+    --green: #5cc98a;
+    --red: #e07070;
+    --sidebar-w: 260px;
+  }
+
+  body { font-family: 'Outfit', sans-serif; background: var(--navy); color: var(--text); display: flex; min-height: 100vh; overflow-x: hidden; }
+
+  .bg {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 100% 0%, rgba(232,168,56,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 60% at 0% 100%, rgba(26,45,66,0.8) 0%, transparent 60%),
+      var(--navy);
+  }
+
+  .sidebar {
+    width: var(--sidebar-w); min-height: 100vh;
+    background: rgba(13,27,42,0.95);
+    border-right: 1px solid var(--glass-border);
+    display: flex; flex-direction: column;
+    padding: 28px 20px;
+    position: fixed; left: 0; top: 0; bottom: 0;
+    z-index: 10; backdrop-filter: blur(10px);
+  }
+  .sidebar-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 36px; padding: 0 4px; }
+  .brand-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--amber), var(--amber-dark)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .brand-name { font-family: 'Playfair Display', serif; font-size: 1.25rem; color: var(--text); }
+  .brand-name span { color: var(--amber); }
+
+  .sidebar-section-label { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.2px; padding: 0 8px; margin-bottom: 8px; margin-top: 20px; }
+  .nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: var(--text-dim); font-size: 0.9rem; font-weight: 500; transition: all 0.2s; margin-bottom: 2px; }
+  .nav-item:hover { background: var(--glass); color: var(--text); }
+  .nav-item.active { background: rgba(232,168,56,0.12); color: var(--amber); }
+  .nav-icon { font-size: 1.05rem; width: 20px; text-align: center; }
+  .badge { margin-left: auto; background: var(--amber); color: var(--navy); font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 10px; min-width: 20px; text-align: center; }
+  .badge.green { background: var(--green); }
+
+  .sidebar-bottom { margin-top: auto; }
+  .user-chip { display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px; cursor: pointer; transition: border-color 0.2s; }
+  .user-chip:hover { border-color: rgba(255,255,255,0.2); }
+  .avatar { width: 36px; height: 36px; background: linear-gradient(135deg, var(--amber), var(--amber-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: var(--navy); flex-shrink: 0; }
+  .user-info { flex: 1; overflow: hidden; }
+  .user-name { font-size: 0.88rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .user-role { font-size: 0.73rem; color: var(--text-dim); }
+  .logout-btn { font-size: 0.8rem; color: var(--text-dim); cursor: pointer; }
+  .logout-btn:hover { color: var(--red); }
+
+  .main { margin-left: var(--sidebar-w); flex: 1; padding: 32px 36px; position: relative; z-index: 1; min-height: 100vh; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+  .page-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; color: var(--text); }
+  .page-title span { color: var(--amber); font-style: italic; }
+  .topbar-right { display: flex; gap: 10px; align-items: center; }
+  .icon-btn { width: 40px; height: 40px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1rem; transition: all 0.2s; position: relative; }
+  .icon-btn:hover { border-color: rgba(255,255,255,0.2); }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+  .stat-card { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 14px; padding: 20px; position: relative; overflow: hidden; transition: border-color 0.2s; }
+  .stat-card:hover { border-color: rgba(232,168,56,0.25); }
+  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--amber), transparent); opacity: 0.6; }
+  .stat-icon { font-size: 1.3rem; margin-bottom: 12px; }
+  .stat-num { font-family: 'Playfair Display', serif; font-size: 1.9rem; color: var(--text); line-height: 1; margin-bottom: 4px; }
+  .stat-label { font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.6px; }
+
+  .section { margin-bottom: 32px; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .section-title { font-size: 1rem; font-weight: 600; color: var(--text); }
+  .see-all { font-size: 0.8rem; color: var(--amber); cursor: pointer; }
+
+  .matches-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .match-card { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 16px; padding: 22px; transition: all 0.25s; }
+  .match-card:hover { border-color: rgba(232,168,56,0.3); transform: translateY(-2px); background: rgba(255,255,255,0.06); }
+  .match-card-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+  .match-avatar { width: 44px; height: 44px; border-radius: 12px; background: var(--navy-light); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; color: var(--amber); flex-shrink: 0; font-family: 'Playfair Display', serif; }
+  .match-info { flex: 1; }
+  .match-name { font-size: 0.95rem; font-weight: 600; color: var(--text); }
+  .match-role { display: inline-block; font-size: 0.7rem; background: rgba(232,168,56,0.1); border: 1px solid rgba(232,168,56,0.2); color: var(--amber); border-radius: 10px; padding: 2px 8px; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .match-role.tutor { background: rgba(92,201,138,0.1); border-color: rgba(92,201,138,0.2); color: var(--green); }
+  .match-score { font-size: 0.8rem; color: var(--text-dim); font-weight: 600; }
+  .match-score strong { color: var(--amber); }
+  .match-degree { font-size: 0.82rem; color: var(--text-dim); margin-bottom: 10px; line-height: 1.4; }
+  .common-modules { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .mod-tag { font-size: 0.72rem; background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); border-radius: 6px; padding: 3px 8px; color: var(--text-dim); }
+  .mod-tag.shared { background: rgba(232,168,56,0.08); border-color: rgba(232,168,56,0.2); color: var(--amber); }
+  .match-actions { display: flex; gap: 8px; }
+  .btn-connect { flex: 1; padding: 9px; background: linear-gradient(135deg, var(--amber), var(--amber-dark)); border: none; border-radius: 8px; color: var(--navy); font-family: 'Outfit', sans-serif; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: opacity 0.2s; }
+  .btn-connect:hover { opacity: 0.88; }
+  .btn-connect:disabled { background: var(--glass); border: 1px solid var(--glass-border); color: var(--text-dim); cursor: default; opacity: 1; }
+
+  .requests-list { display: flex; flex-direction: column; gap: 12px; }
+  .request-row { display: flex; align-items: center; gap: 14px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px; padding: 14px 18px; transition: border-color 0.2s; }
+  .request-row:hover { border-color: rgba(255,255,255,0.15); }
+  .req-avatar { width: 40px; height: 40px; border-radius: 10px; background: var(--navy-light); display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-weight: 700; color: var(--green); font-size: 0.95rem; flex-shrink: 0; }
+  .req-info { flex: 1; }
+  .req-name { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+  .req-meta { font-size: 0.78rem; color: var(--text-dim); margin-top: 2px; }
+  .req-modules { font-size: 0.75rem; color: var(--amber); margin-top: 3px; }
+  .req-actions { display: flex; gap: 8px; }
+  .btn-accept { padding: 7px 16px; background: rgba(92,201,138,0.15); border: 1px solid rgba(92,201,138,0.3); border-radius: 8px; color: var(--green); font-size: 0.8rem; font-weight: 600; cursor: pointer; font-family: 'Outfit', sans-serif; transition: all 0.2s; }
+  .btn-accept:hover { background: rgba(92,201,138,0.25); }
+  .btn-decline { padding: 7px 14px; background: rgba(224,112,112,0.1); border: 1px solid rgba(224,112,112,0.2); border-radius: 8px; color: var(--red); font-size: 0.8rem; cursor: pointer; font-family: 'Outfit', sans-serif; transition: all 0.2s; }
+  .btn-decline:hover { background: rgba(224,112,112,0.2); }
+
+  .connections-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .connection-card { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 14px; padding: 20px; transition: border-color 0.2s; cursor: pointer; }
+  .connection-card:hover { border-color: rgba(92,201,138,0.3); }
+  .conn-details { 
+    display: none; 
+    margin-top: 16px; 
+    padding-top: 16px; 
+    border-top: 1px solid var(--glass-border); 
+    animation: fadeIn 0.2s ease;
+  }
+  .connection-card.expanded .conn-details { display: block; }
+  .connection-card.expanded .connected-badge { color: var(--amber); border-color: rgba(232,168,56,0.3); background: rgba(232,168,56,0.08); }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .conn-head { display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-start; }
+  .conn-avatar { width: 42px; height: 42px; border-radius: 10px; background: rgba(92,201,138,0.1); border: 1px solid rgba(92,201,138,0.25); display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-weight: 700; color: var(--green); font-size: 1rem; flex-shrink: 0; }
+  .conn-name { font-size: 0.92rem; font-weight: 600; color: var(--text); }
+  .conn-degree { font-size: 0.78rem; color: var(--text-dim); margin-top: 2px; }
+  .conn-contact { margin-top: 10px; }
+  .contact-row { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 5px; }
+  .contact-val { color: var(--text); }
+  .connected-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 0.7rem; background: rgba(92,201,138,0.1); border: 1px solid rgba(92,201,138,0.25); color: var(--green); padding: 3px 9px; border-radius: 10px; margin-top: 8px; }
+
+  /* Profile */
+  .profile-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 24px; }
+  .profile-card { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 16px; padding: 28px; }
+  .profile-avatar-large { width: 72px; height: 72px; border-radius: 16px; background: linear-gradient(135deg, var(--amber), var(--amber-dark)); display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.8rem; color: var(--navy); margin-bottom: 16px; }
+  .profile-name { font-family: 'Playfair Display', serif; font-size: 1.35rem; color: var(--text); margin-bottom: 4px; }
+  .profile-role-badge { display: inline-block; font-size: 0.72rem; background: rgba(232,168,56,0.1); border: 1px solid rgba(232,168,56,0.2); color: var(--amber); padding: 3px 10px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+  .profile-detail-row { display: flex; gap: 8px; align-items: flex-start; font-size: 0.83rem; color: var(--text-dim); margin-bottom: 8px; }
+  .profile-detail-row .val { color: var(--text); }
+  .profile-section-title { font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; margin-top: 20px; padding-bottom: 6px; border-bottom: 1px solid var(--glass-border); }
+  .edit-btn { display: block; width: 100%; margin-top: 20px; padding: 10px; background: rgba(232,168,56,0.1); border: 1px solid rgba(232,168,56,0.25); border-radius: 10px; color: var(--amber); font-family: 'Outfit', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-align: center; transition: all 0.2s; }
+  .edit-btn:hover { background: rgba(232,168,56,0.2); }
+
+  .form-field-edit { margin-bottom: 16px; }
+  .form-field-edit label { display: block; font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 6px; }
+  .form-field-edit input, .form-field-edit select, .form-field-edit textarea { width: 100%; padding: 11px 14px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 9px; color: var(--text); font-family: 'Outfit', sans-serif; font-size: 0.88rem; outline: none; transition: border-color 0.2s; }
+  .form-field-edit input:focus, .form-field-edit select:focus, .form-field-edit textarea:focus { border-color: var(--amber); }
+  .form-field-edit textarea { resize: vertical; min-height: 80px; }
+  .form-field-edit select option { background: var(--navy-mid); }
+  .save-btn { padding: 11px 24px; background: linear-gradient(135deg, var(--amber), var(--amber-dark)); border: none; border-radius: 9px; color: var(--navy); font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: opacity 0.2s; }
+  .save-btn:hover { opacity: 0.88; }
+  .save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .empty-state { text-align: center; padding: 48px 24px; color: var(--text-dim); }
+  .empty-icon { font-size: 2.5rem; margin-bottom: 12px; opacity: 0.5; }
+  .empty-msg { font-size: 0.9rem; line-height: 1.6; }
+
+  .loading-state { text-align: center; padding: 40px; color: var(--text-dim); font-size: 0.9rem; }
+  .spinner-lg { width: 28px; height: 28px; border: 3px solid rgba(232,168,56,0.2); border-top-color: var(--amber); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--navy-mid); border: 1px solid rgba(92,201,138,0.3); border-radius: 12px; padding: 12px 18px; font-size: 0.85rem; color: var(--green); display: flex; align-items: center; gap: 8px; z-index: 100; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.error { border-color: rgba(224,112,112,0.3); color: var(--red); }
+
+  .tag { display: inline-flex; align-items: center; gap: 6px; background: rgba(232,168,56,0.1); border: 1px solid rgba(232,168,56,0.25); border-radius: 20px; padding: 4px 12px; font-size: 0.8rem; color: var(--amber); }
+  .tag-remove { background: none; border: none; color: var(--amber); cursor: pointer; font-size: 0.9rem; opacity: 0.7; padding: 0; }
+  .tags-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .btn-add { padding: 11px 14px; background: rgba(232,168,56,0.15); border: 1px solid rgba(232,168,56,0.3); border-radius: 9px; color: var(--amber); cursor: pointer; font-family: Outfit,sans-serif; font-size: 0.84rem; font-weight: 600; }
+
+  .mobile-menu-btn { display: none; position: fixed; top: 16px; left: 16px; z-index: 20; width: 40px; height: 40px; background: var(--navy-mid); border: 1px solid var(--glass-border); border-radius: 10px; align-items: center; justify-content: center; font-size: 1.1rem; cursor: pointer; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 860px) {
+    .mobile-menu-btn { display: flex; }
+    .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
+    .sidebar.open { transform: translateX(0); }
+    .main { margin-left: 0; padding: 24px 16px; padding-top: 60px; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .profile-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</div>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon">🎓</div>
+    <div class="brand-name">Peer<span>Bridge</span></div>
+  </div>
+
+  <div class="sidebar-section-label">Main</div>
+  <div class="nav-item active" onclick="showPage('overview', this)"><span class="nav-icon">🏠</span> Overview</div>
+  <div class="nav-item" onclick="showPage('matches', this)"><span class="nav-icon">🔍</span> My Matches <span class="badge" id="badge-matches">—</span></div>
+
+  <div class="sidebar-section-label">Connections</div>
+  <div class="nav-item" onclick="showPage('requests', this)"><span class="nav-icon">📬</span> Requests <span class="badge" id="badge-requests">—</span></div>
+  <div class="nav-item" onclick="showPage('connections', this)"><span class="nav-icon">🤝</span> Connected <span class="badge green" id="badge-connections">—</span></div>
+
+  <div class="sidebar-section-label">Account</div>
+  <div class="nav-item" onclick="showPage('profile', this)"><span class="nav-icon">👤</span> My Profile</div>
+
+  <div class="sidebar-bottom">
+    <div class="user-chip">
+      <div class="avatar" id="sidebar-avatar">?</div>
+      <div class="user-info">
+        <div class="user-name" id="sidebar-name">Loading…</div>
+        <div class="user-role" id="sidebar-role"></div>
+      </div>
+      <span class="logout-btn" title="Sign out" onclick="handleSignOut()">⏏</span>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- OVERVIEW -->
+  <div class="page active" id="page-overview">
+    <div class="topbar">
+      <div>
+        <div style="font-size:0.82rem; color:var(--text-dim); margin-bottom:4px;" id="greeting">Good day 👋</div>
+        <h1 class="page-title">Welcome back, <span id="welcome-name">…</span></h1>
+      </div>
+      <div class="topbar-right">
+        <div class="icon-btn" onclick="showPage('profile', document.querySelector('.nav-item:nth-child(9)'))">⚙️</div>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-icon">🔍</div><div class="stat-num" id="stat-matches">—</div><div class="stat-label">New Matches</div></div>
+      <div class="stat-card"><div class="stat-icon">📬</div><div class="stat-num" id="stat-requests">—</div><div class="stat-label">Pending Requests</div></div>
+      <div class="stat-card"><div class="stat-icon">🤝</div><div class="stat-num" id="stat-connections">—</div><div class="stat-label">Connections</div></div>
+      <div class="stat-card"><div class="stat-icon">📚</div><div class="stat-num" id="stat-modules">—</div><div class="stat-label">My Modules</div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <span class="section-title">Recent Matches</span>
+        <a class="see-all" onclick="showPage('matches', null)">See all →</a>
+      </div>
+      <div class="matches-grid" id="overview-matches"><div class="loading-state"><div class="spinner-lg"></div>Loading matches…</div></div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <span class="section-title">Pending Requests</span>
+        <a class="see-all" onclick="showPage('requests', null)">See all →</a>
+      </div>
+      <div class="requests-list" id="overview-requests"><div class="loading-state"><div class="spinner-lg"></div>Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- MATCHES -->
+  <div class="page" id="page-matches">
+    <div class="topbar"><h1 class="page-title">My <span>Matches</span></h1></div>
+    <div style="margin-bottom:20px; font-size:0.88rem; color:var(--text-dim); background:var(--glass); border:1px solid var(--glass-border); border-radius:10px; padding:12px 16px;">
+      🔒 <strong style="color:var(--text);">Privacy note:</strong> Basic information only. Full contact details are only revealed after both sides accept a connection request.
+    </div>
+    <div class="matches-grid" id="all-matches"><div class="loading-state"><div class="spinner-lg"></div>Loading matches…</div></div>
+  </div>
+
+  <!-- REQUESTS -->
+  <div class="page" id="page-requests">
+    <div class="topbar"><h1 class="page-title">Connection <span>Requests</span></h1></div>
+    <div class="section">
+      <div class="section-head"><span class="section-title">Incoming</span></div>
+      <div class="requests-list" id="incoming-requests"><div class="loading-state"><div class="spinner-lg"></div></div></div>
+    </div>
+    <div class="section">
+      <div class="section-head"><span class="section-title">Sent</span></div>
+      <div class="requests-list" id="sent-requests"><div class="loading-state"><div class="spinner-lg"></div></div></div>
+    </div>
+  </div>
+
+  <!-- CONNECTIONS -->
+  <div class="page" id="page-connections">
+    <div class="topbar"><h1 class="page-title">My <span>Connections</span></h1></div>
+    <div style="margin-bottom:20px; font-size:0.88rem; color:var(--green); background:rgba(92,201,138,0.07); border:1px solid rgba(92,201,138,0.2); border-radius:10px; padding:12px 16px;">
+      ✅ Full contact details are now visible for your connected peers.
+    </div>
+    <div class="connections-grid" id="connections-list"><div class="loading-state"><div class="spinner-lg"></div></div></div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="page" id="page-profile">
+    <div class="topbar"><h1 class="page-title">My <span>Profile</span></h1></div>
+    <div class="profile-grid">
+      <div class="profile-card">
+        <div class="profile-avatar-large" id="profile-avatar-lg">?</div>
+        <div class="profile-name" id="profile-full-name">Loading…</div>
+        <div class="profile-role-badge" id="profile-role-badge"></div>
+        <div class="profile-detail-row"><span>🏫</span><span class="val" id="profile-university">—</span></div>
+        <div class="profile-detail-row"><span>🎓</span><span class="val" id="profile-degree">—</span></div>
+        <div class="profile-detail-row"><span>📅</span><span class="val" id="profile-year">—</span></div>
+        <div class="profile-section-title">My Modules</div>
+        <div class="common-modules" id="profile-modules-list"></div>
+        <div class="profile-section-title">Contact (private)</div>
+        <div class="profile-detail-row"><span>📧</span><span class="val" id="profile-email" style="color:var(--text-dim)">—</span></div>
+        <div class="profile-detail-row"><span>📱</span><span class="val" style="color:var(--text-dim)">Hidden until connected</span></div>
+        <button class="edit-btn" onclick="document.getElementById('edit-section').style.display='block'">✏️ Edit Profile</button>
+      </div>
+
+      <div class="profile-card" id="edit-section" style="display:none;">
+        <div class="profile-section-title" style="margin-top:0">Edit Your Information</div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <div class="form-field-edit"><label>First Name</label><input type="text" id="edit-firstName" /></div>
+          <div class="form-field-edit"><label>Last Name</label><input type="text" id="edit-lastName" /></div>
+        </div>
+        <div class="form-field-edit"><label>University</label><input type="text" id="edit-university" /></div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <div class="form-field-edit"><label>Degree</label><input type="text" id="edit-degree" /></div>
+          <div class="form-field-edit">
+            <label>Year</label>
+            <select id="edit-year">
+              <option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option><option>Postgraduate</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-field-edit"><label>Bio</label><textarea id="edit-bio"></textarea></div>
+        <div class="form-field-edit"><label>Phone Number</label><input type="tel" id="edit-phone" placeholder="+27 82 123 4567" /></div>
+        <div class="form-field-edit"><label>Availability</label><input type="text" id="edit-availability" /></div>
+        <div class="form-field-edit">
+          <label>Preferred Contact</label>
+          <select id="edit-contactPref">
+            <option>WhatsApp</option><option>Email</option><option>In-person only</option><option>Video call</option>
+          </select>
+        </div>
+
+        <div class="profile-section-title">My Modules</div>
+        <div class="form-field-edit">
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="editModInput" placeholder="Add module code…" onkeydown="if(event.key==='Enter'){event.preventDefault();addEditMod()}" />
+            <button class="btn-add" onclick="addEditMod()">+ Add</button>
+          </div>
+          <div class="tags-list" id="editTagsList"></div>
+        </div>
+
+        <button class="save-btn" id="saveProfileBtn" onclick="saveProfile()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<div class="toast" id="toast">✓ <span id="toast-msg"></span></div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────
+let myProfile = null;
+let editModules = [];
+
+// ── INIT ──────────────────────────────────────────────
+(async () => {
+  const session = await getSession();
+  if (!session) { window.location.href = 'signin.html'; return; }
+
+  // Load profile
+  try {
+    myProfile = await getMyProfile();
+    if (!myProfile) throw new Error('No profile');
+    hydrateSidebar(myProfile);
+    hydrateProfilePage(myProfile);
+    setGreeting(myProfile.first_name);
+  } catch (e) {
+    console.error(e);
+  }
+
+  // Load all data in parallel
+  await Promise.all([
+    loadMatches(),
+    loadIncoming(),
+    loadSent(),
+    loadConnections()
+  ]);
+
+  // Realtime updates
+  if (myProfile) {
+    subscribeToConnections(myProfile.id, () => {
+      loadIncoming();
+      loadSent();
+      loadConnections();
+    });
+  }
+})();
+
+// ── SIDEBAR / GREETING ─────────────────────────────────
+function hydrateSidebar(p) {
+  document.getElementById('sidebar-avatar').textContent = p.avatar_initials || '?';
+  document.getElementById('sidebar-name').textContent = `${p.first_name} ${p.last_name}`;
+  document.getElementById('sidebar-role').textContent = `${p.role === 'tutor' ? '📚 Tutor' : '🎒 Student'}`;
+  document.getElementById('welcome-name').textContent = p.first_name;
+  document.getElementById('stat-modules').textContent = (p.modules || []).length;
+}
+
+function setGreeting(name) {
+  const h = new Date().getHours();
+  const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('greeting').textContent = `${greet} 👋`;
+}
+
+// ── MATCHES ──────────────────────────────────────────
+async function loadMatches() {
+  try {
+    const matches = await getMatches();
+    const count = matches.length;
+    document.getElementById('stat-matches').textContent = count;
+    document.getElementById('badge-matches').textContent = count || '0';
+
+    const html = matches.length
+      ? matches.map(m => renderMatchCard(m)).join('')
+      : '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-msg">No matches yet. Make sure you have modules added to your profile.</div></div>';
+
+    document.getElementById('all-matches').innerHTML = html;
+    document.getElementById('overview-matches').innerHTML = matches.length
+      ? matches.slice(0,3).map(m => renderMatchCard(m)).join('')
+      : '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-msg">No matches found yet.</div></div>';
+  } catch (e) {
+    document.getElementById('all-matches').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-msg">${e.message}</div></div>`;
+  }
+}
+
+function renderMatchCard(m) {
+  const myMods = myProfile?.modules || [];
+  const shared = (m.shared_modules || []);
+  const allMods = [...new Set([...shared, ...(m.all_modules || [])])];
+
+  const isSent = m.conn_status === 'sent';
+  const isConnected = m.conn_status === 'connected';
+  const isReceived = m.conn_status === 'received';
+
+  let btnLabel = 'Connect';
+  let btnDisabled = false;
+  if (isSent) { btnLabel = '✓ Request Sent'; btnDisabled = true; }
+  if (isConnected) { btnLabel = '✓ Connected'; btnDisabled = true; }
+  if (isReceived) { btnLabel = '📬 Respond'; btnDisabled = false; }
+
+  const score = m.match_score || 0;
+  const initials = m.avatar_initials || ((m.first_name?.[0]||'?') + (m.last_name?.[0]||'?')).toUpperCase();
+
+  return `
+    <div class="match-card">
+      <div class="match-card-head">
+        <div class="match-avatar">${initials}</div>
+        <div class="match-info">
+          <div class="match-name">${m.first_name} ${m.last_name}</div>
+          <span class="match-role ${m.role}">${m.role === 'tutor' ? '📚 Tutor' : '🎒 Student'}</span>
+        </div>
+        <div class="match-score"><strong>${score}</strong><br/><span style="font-size:0.7rem">shared</span></div>
+      </div>
+      <div class="match-degree">${m.degree || '—'} · ${m.year_of_study || ''}</div>
+      <div class="common-modules">
+        ${shared.map(mod => `<span class="mod-tag shared">${mod}</span>`).join('')}
+      </div>
+      <div class="match-actions">
+        <button class="btn-connect" ${btnDisabled ? 'disabled' : ''} 
+          onclick="handleConnect('${m.profile_id}', '${m.conn_status}', this)">
+          ${btnLabel}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+async function handleConnect(profileId, currentStatus, btn) {
+  if (currentStatus === 'received') {
+    showPage('requests', document.querySelector('.nav-item:nth-child(7)'));
+    return;
+  }
+  try {
+    await sendConnectionRequest(profileId);
+    btn.disabled = true;
+    btn.textContent = '✓ Request Sent';
+    showToast('Connection request sent!');
+    await loadMatches();
+  } catch (e) {
+    showToast(e.message, true);
+  }
+}
+
+// ── REQUESTS ──────────────────────────────────────────
+async function loadIncoming() {
+  try {
+    const reqs = await getIncomingRequests();
+    const count = reqs.length;
+    document.getElementById('stat-requests').textContent = count;
+    document.getElementById('badge-requests').textContent = count || '0';
+
+    const html = reqs.length
+      ? reqs.map(r => renderRequestRow(r, 'incoming')).join('')
+      : '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-msg">No incoming requests.</div></div>';
+
+    document.getElementById('incoming-requests').innerHTML = html;
+    document.getElementById('overview-requests').innerHTML = reqs.length
+      ? reqs.slice(0,3).map(r => renderRequestRow(r, 'incoming')).join('')
+      : '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-msg">No pending requests.</div></div>';
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function loadSent() {
+  try {
+    const sent = await getSentRequests();
+    const html = sent.length
+      ? sent.map(r => renderRequestRow(r, 'sent')).join('')
+      : '<div class="empty-state"><div class="empty-icon">📤</div><div class="empty-msg">No sent requests.</div></div>';
+    document.getElementById('sent-requests').innerHTML = html;
+  } catch (e) { console.error(e); }
+}
+
+function renderRequestRow(r, type) {
+  const initials = r.avatar_initials || ((r.first_name?.[0]||'?') + (r.last_name?.[0]||'?')).toUpperCase();
+  const mods = (r.modules || []).join(', ') || '—';
+  const ago = r.createdAt ? timeAgo(r.createdAt) : '';
+  return `
+    <div class="request-row" id="req-${r.connectionId}">
+      <div class="req-avatar">${initials}</div>
+      <div class="req-info">
+        <div class="req-name">${r.first_name} ${r.last_name}</div>
+        <div class="req-meta">${r.degree || ''} ${r.year_of_study ? '· '+r.year_of_study : ''}</div>
+        <div class="req-modules">Modules: ${mods}</div>
+        <div class="req-meta">${ago}</div>
+      </div>
+      <div class="req-actions">
+        ${type === 'incoming' ? `
+          <button class="btn-accept" onclick="acceptReq('${r.connectionId}')">✓ Accept</button>
+          <button class="btn-decline" onclick="declineReq('${r.connectionId}')">✕</button>
+        ` : `
+          <span style="font-size:0.78rem; color:var(--text-dim); background:var(--glass); border:1px solid var(--glass-border); padding:6px 12px; border-radius:8px;">⏳ Pending</span>
+          <button class="btn-decline" title="Withdraw" onclick="withdrawReq('${r.connectionId}')">✕</button>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+async function acceptReq(connId) {
+  try {
+    await respondToRequest(connId, true);
+    removeRow(connId);
+    showToast('Connection accepted! You can now see their full profile.');
+    await loadConnections();
+    await loadIncoming();
+  } catch (e) { showToast(e.message, true); }
+}
+
+async function declineReq(connId) {
+  try {
+    await respondToRequest(connId, false);
+    removeRow(connId);
+    showToast('Request declined.');
+    await loadIncoming();
+  } catch (e) { showToast(e.message, true); }
+}
+
+async function withdrawReq(connId) {
+  try {
+    await withdrawRequest(connId);
+    removeRow(connId);
+    showToast('Request withdrawn.');
+    await loadSent();
+    await loadMatches();
+  } catch (e) { showToast(e.message, true); }
+}
+
+function removeRow(connId) {
+  const row = document.getElementById('req-' + connId);
+  if (row) { row.style.opacity = '0'; row.style.transition = 'opacity 0.3s'; setTimeout(() => row.remove(), 300); }
+}
+
+// ── CONNECTIONS ────────────────────────────────────────
+async function loadConnections() {
+  try {
+    const conns = await getConnectedProfiles();
+    const count = conns.length;
+    document.getElementById('stat-connections').textContent = count;
+    document.getElementById('badge-connections').textContent = count || '0';
+
+    document.getElementById('connections-list').innerHTML = conns.length
+      ? conns.map(c => renderConnectionCard(c)).join('')
+      : '<div class="empty-state"><div class="empty-icon">🤝</div><div class="empty-msg">No connections yet. Accept or send requests to connect.</div></div>';
+  } catch (e) { console.error(e); }
+}
+
+function renderConnectionCard(c) {
+  const initials = c.avatar_initials || ((c.first_name?.[0]||'?') + (c.last_name?.[0]||'?')).toUpperCase();
+  const mods = (c.modules || []).map(m => `<span class="mod-tag shared">${m}</span>`).join('');
+
+  return `
+    <div class="connection-card" onclick="toggleConnectionDetails(this)">
+      <div class="conn-head">
+        <div class="conn-avatar">${initials}</div>
+        <div>
+          <div class="conn-name">${c.first_name} ${c.last_name}</div>
+          <div class="conn-degree">${c.degree || ''} ${c.year_of_study ? '· '+c.year_of_study : ''}</div>
+          <span class="connected-badge">
+            <span style="width:6px;height:6px;background:var(--green);border-radius:50%;display:inline-block"></span> 
+            Connected · tap to expand
+          </span>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;">${mods}</div>
+
+      <div class="conn-details">
+        <div class="conn-contact">
+          <div class="contact-row">📧 <span class="contact-val">${c.email || '<em style="color:var(--text-dim)">No email on file</em>'}</span></div>
+          <div class="contact-row">📱 <span class="contact-val">${c.phone || '<em style="color:var(--text-dim)">No phone on file</em>'}</span></div>
+          <div class="contact-row">💬 <span class="contact-val">${c.contact_pref || '<em style="color:var(--text-dim)">No preference set</em>'}</span></div>
+          ${c.university ? `<div class="contact-row">🏫 <span class="contact-val">${c.university}</span></div>` : ''}
+          ${c.bio ? `<div class="contact-row">📝 <span class="contact-val">${c.bio}</span></div>` : ''}
+          ${c.availability ? `<div class="contact-row">🕒 <span class="contact-val">${c.availability}</span></div>` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function toggleConnectionDetails(card) {
+  console.log('toggling details');
+  card.classList.toggle('expanded');
+}
+
+// ── PROFILE PAGE ──────────────────────────────────────
+function hydrateProfilePage(p) {
+  document.getElementById('profile-avatar-lg').textContent = p.avatar_initials || '?';
+  document.getElementById('profile-full-name').textContent = `${p.first_name} ${p.last_name}`;
+  document.getElementById('profile-role-badge').textContent = p.role === 'tutor' ? '📚 Tutor' : '🎒 Student';
+  document.getElementById('profile-university').textContent = p.university || '—';
+  document.getElementById('profile-degree').textContent = p.degree || '—';
+  document.getElementById('profile-year').textContent = p.year_of_study || '—';
+  document.getElementById('profile-modules-list').innerHTML = (p.modules || []).map(m => `<span class="mod-tag shared">${m}</span>`).join('') || '<span style="color:var(--text-dim);font-size:0.82rem">No modules added</span>';
+
+  // Auth email (not in profile table, we use user object)
+  getUser().then(u => {
+    if (u) document.getElementById('profile-email').textContent = u.email || '—';
+  });
+
+  // Pre-fill edit form
+  document.getElementById('edit-firstName').value = p.first_name || '';
+  document.getElementById('edit-lastName').value  = p.last_name  || '';
+  document.getElementById('edit-university').value = p.university || '';
+  document.getElementById('edit-degree').value     = p.degree || '';
+  document.getElementById('edit-bio').value        = p.bio || '';
+  document.getElementById('edit-availability').value = p.availability || '';
+  document.getElementById('edit-phone').value = p.phone || '';  // ← add this
+  if (p.year_of_study) document.getElementById('edit-year').value = p.year_of_study;
+  if (p.contact_pref)  document.getElementById('edit-contactPref').value = p.contact_pref;
+
+  editModules = [...(p.modules || [])];
+  renderEditTags();
+}
+
+function renderEditTags() {
+  document.getElementById('editTagsList').innerHTML = editModules.map(m =>
+    `<span class="tag">${m}<button class="tag-remove" onclick="removeEditMod('${m}')">×</button></span>`
+  ).join('');
+}
+
+function addEditMod() {
+  const inp = document.getElementById('editModInput');
+  const val = inp.value.trim().toUpperCase();
+  if (!val || editModules.includes(val)) { inp.value = ''; return; }
+  editModules.push(val);
+  renderEditTags();
+  inp.value = '';
+}
+
+function removeEditMod(mod) {
+  editModules = editModules.filter(m => m !== mod);
+  renderEditTags();
+}
+
+async function saveProfile() {
+  const btn = document.getElementById('saveProfileBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    await updateMyProfile({
+      first_name:   document.getElementById('edit-firstName').value.trim(),
+      last_name:    document.getElementById('edit-lastName').value.trim(),
+      university:   document.getElementById('edit-university').value.trim(),
+      degree:       document.getElementById('edit-degree').value.trim(),
+      year_of_study: document.getElementById('edit-year').value,
+      bio:          document.getElementById('edit-bio').value.trim(),
+      availability: document.getElementById('edit-availability').value.trim(),
+      contact_pref: document.getElementById('edit-contactPref').value,
+      phone:        document.getElementById('edit-phone').value.trim(),  // ← add this
+    });
+
+    if (editModules.length > 0) {
+      await setMyModules(editModules);
+    }
+
+    // Reload profile
+    myProfile = await getMyProfile();
+    hydrateSidebar(myProfile);
+    hydrateProfilePage(myProfile);
+
+    showToast('Profile saved successfully!');
+  } catch (e) {
+    showToast(e.message || 'Save failed.', true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save Changes';
+  }
+}
+
+// ── SIGN OUT ──────────────────────────────────────────
+async function handleSignOut() {
+  await signOut();
+  window.location.href = 'signin.html';
+}
+
+// ── NAV ───────────────────────────────────────────────
+function showPage(name, navEl) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (navEl) navEl.classList.add('active');
+  document.querySelector('.sidebar').classList.remove('open');
+  window.scrollTo(0, 0);
+}
+
+// ── TOAST ─────────────────────────────────────────────
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.remove('error');
+  if (isError) t.classList.add('error');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3200);
+}
+</script>
+</body>
+</html>
